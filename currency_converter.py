@@ -49,6 +49,11 @@ CURRENCIES = [
     "MXN", "BRL", "ZAR", "KRW"
 ]
 
+if "from_currency" not in st.session_state:
+    st.session_state.from_currency = "USD"
+if "to_currency" not in st.session_state:
+    st.session_state.to_currency = "INR"
+
 @st.cache_data(ttl=3600)
 def get_exchange_rates(base_currency):
     try:
@@ -62,24 +67,38 @@ def get_exchange_rates(base_currency):
     except Exception:
         return None, None
 
+def swap_currencies():
+    st.session_state.from_currency, st.session_state.to_currency = (
+        st.session_state.to_currency,
+        st.session_state.from_currency,
+    )
+
 col1, col2, col3 = st.columns([2, 1, 2])
 
 with col1:
-    from_currency = st.selectbox("🏦 From Currency", CURRENCIES, index=CURRENCIES.index("USD"))
+    from_currency = st.selectbox(
+        "🏦 From Currency",
+        CURRENCIES,
+        index=CURRENCIES.index(st.session_state.from_currency),
+        key="from_select"
+    )
+    st.session_state.from_currency = from_currency
 
 with col2:
     st.markdown("<br><br>", unsafe_allow_html=True)
-    swap = st.button("⇄ Swap")
+    st.button("⇄ Swap", on_click=swap_currencies)
 
 with col3:
-    to_currency = st.selectbox("💰 To Currency", CURRENCIES, index=CURRENCIES.index("INR"))
-
-if swap:
-    from_currency, to_currency = to_currency, from_currency
-    st.rerun()
+    to_currency = st.selectbox(
+        "💰 To Currency",
+        CURRENCIES,
+        index=CURRENCIES.index(st.session_state.to_currency),
+        key="to_select"
+    )
+    st.session_state.to_currency = to_currency
 
 amount = st.number_input(
-    f"Enter amount in {from_currency}",
+    f"Enter amount in {st.session_state.from_currency}",
     min_value=0.01,
     value=1.00,
     step=1.0,
@@ -90,43 +109,42 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 if st.button("🔄 Convert"):
     with st.spinner("Fetching latest exchange rates..."):
-        rates, last_updated = get_exchange_rates(from_currency)
+        rates, last_updated = get_exchange_rates(st.session_state.from_currency)
 
     if rates:
-        if to_currency in rates:
-            rate = rates[to_currency]
+        if st.session_state.to_currency in rates:
+            rate = rates[st.session_state.to_currency]
             converted = amount * rate
 
             st.markdown(f"""
                 <div class="result-box">
-                    <b>{amount:,.2f} {from_currency}</b> = 
-                    <span style="color:#4F8BF9; font-size:28px;"><b>{converted:,.4f} {to_currency}</b></span>
+                    <b>{amount:,.2f} {st.session_state.from_currency}</b> = 
+                    <span style="color:#4F8BF9; font-size:28px;"><b>{converted:,.4f} {st.session_state.to_currency}</b></span>
                 </div>
             """, unsafe_allow_html=True)
 
             st.markdown(f"""
                 <div class="rate-box">
-                    📌 <b>1 {from_currency}</b> = <b>{rate:.6f} {to_currency}</b> &nbsp;|&nbsp;
+                    📌 <b>1 {st.session_state.from_currency}</b> = <b>{rate:.6f} {st.session_state.to_currency}</b> &nbsp;|&nbsp;
                     🕒 Last updated: {last_updated}
                 </div>
             """, unsafe_allow_html=True)
-
         else:
-            st.error(f"Currency '{to_currency}' not found in the rates.")
+            st.error(f"Currency '{st.session_state.to_currency}' not found in the rates.")
     else:
         st.error("⚠️ Could not fetch exchange rates. Please check your internet connection.")
 
 st.divider()
 
 with st.expander("📊 Compare with Multiple Currencies"):
-    st.write(f"**Conversion of {amount:,.2f} {from_currency} to multiple currencies:**")
-    rates_data, _ = get_exchange_rates(from_currency)
+    st.write(f"**Conversion of {amount:,.2f} {st.session_state.from_currency} to multiple currencies:**")
+    rates_data, _ = get_exchange_rates(st.session_state.from_currency)
     if rates_data:
         compare_currencies = ["USD", "EUR", "GBP", "INR", "JPY", "AUD", "CAD", "CHF", "CNY", "SGD"]
         table_data = {
             "Currency": compare_currencies,
             "Exchange Rate": [f"{rates_data.get(c, 'N/A'):.4f}" for c in compare_currencies],
-            f"Value ({amount:.2f} {from_currency})": [
+            f"Value ({amount:.2f} {st.session_state.from_currency})": [
                 f"{amount * rates_data[c]:,.4f}" if c in rates_data else "N/A"
                 for c in compare_currencies
             ]
